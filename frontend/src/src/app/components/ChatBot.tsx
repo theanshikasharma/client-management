@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, Bot, Sparkles, RefreshCw, Copy, ThumbsUp, ThumbsDown, Paperclip, Mic, Plus, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
-const API = "http://localhost:8080";
+const API = "";
 
 interface Message {
   id: string;
