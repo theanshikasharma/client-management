@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, Bot, Sparkles, RefreshCw, Copy, ThumbsUp, ThumbsDown, Paperclip, Mic, Plus, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
-const HF_TOKEN = "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";
+const HF_TOKEN = "YOUR_HF_TOKEN_HERE";
 const HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.1";
 
 interface Message {
