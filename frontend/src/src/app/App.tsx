@@ -21,7 +21,7 @@ export default function App() {
 
     async function check() {
       try {
-        const r = await fetch("/tasks/health");
+        const r = await fetch("http://localhost:8080/tasks/health");
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = (await r.json()) as { status?: string };
         if (!cancelled && data?.status === "ok") setBackendHealth("online");

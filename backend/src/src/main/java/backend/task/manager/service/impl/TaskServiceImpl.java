@@ -38,12 +38,27 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Page<TaskResponseDTO> getTasksPaged(int page, int size, String sortBy, String direction) {
-        Sort sort = direction.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-        Pageable pageable = PageRequest.of(page, size, sort);
+        // Defensive defaults
+        int safePage = Math.max(0, page);
+        int safeSize = (size < 1) ? 10 : Math.min(size, 100);
+
+        // Whitelist sortable fields to avoid runtime failures from invalid sortBy
+        String safeSortBy = normalizeSortBy(sortBy);
+        Sort.Direction safeDirection = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+        Sort sort = Sort.by(safeDirection, safeSortBy);
+        Pageable pageable = PageRequest.of(safePage, safeSize, sort);
         return taskRepository.findAll(pageable).map(this::toDTO);
     }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null) return "createdAt";
+        return switch (sortBy) {
+            case "id", "title", "description", "status", "priority", "deadline", "createdAt", "updatedAt" -> sortBy;
+            default -> "createdAt";
+        };
+    }
+
 
     @Override
     public TaskResponseDTO getTaskById(Long id) {

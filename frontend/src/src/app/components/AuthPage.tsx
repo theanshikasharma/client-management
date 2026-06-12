@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Eye, EyeOff, ArrowRight, Shield, CheckCircle2, Mail, Lock, User, Building2, ChevronLeft, AlertCircle } from "lucide-react";
 
-const API = "";
+const API = "http://localhost:8080";
 
 type AuthStep = "login" | "signup" | "otp";
 

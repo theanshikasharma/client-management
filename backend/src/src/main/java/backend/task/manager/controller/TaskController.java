@@ -11,7 +11,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/tasks")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 @RequiredArgsConstructor
 public class TaskController {
 
@@ -40,6 +40,7 @@ public class TaskController {
             @RequestParam(defaultValue = "desc") String direction) {
         return ResponseEntity.ok(taskService.getTasksPaged(page, size, sortBy, direction));
     }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<TaskResponseDTO> getTaskById(@PathVariable Long id) {
