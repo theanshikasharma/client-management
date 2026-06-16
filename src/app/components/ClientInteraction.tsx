@@ -16,7 +16,7 @@ interface ClientInteractionProps {
   user: { name: string; email: string; company: string };
 }
 
-const API = "http://localhost:8082";
+const API = "";
 
 export function ClientInteraction({ user }: ClientInteractionProps) {
   const [tasks, setTasks] = useState<Task[]>([]);

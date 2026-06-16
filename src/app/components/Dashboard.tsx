@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, MessageSquare, Users, ClipboardList,
@@ -73,10 +74,79 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const [activeView, setActiveView] = useState<View>("overview");
   const [notifOpen, setNotifOpen] = useState(false);
 
+  type TaskLike = {
+    id: number;
+    title?: string;
+    status?: string;
+    priority?: string;
+    deadline?: string | null;
+  };
+
+  const [tasks, setTasks] = useState<TaskLike[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeView !== "overview") return;
+
+    let cancelled = false;
+    async function load() {
+      setTasksLoading(true);
+      setTasksError(null);
+      try {
+        const r = await fetch("/tasks");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as TaskLike[];
+        if (!cancelled) setTasks(data);
+      } catch (e: any) {
+        if (!cancelled) setTasksError(e?.message || "Failed to load tasks");
+      } finally {
+        if (!cancelled) setTasksLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView]);
+
+  const kpi = useMemo(() => {
+    const total = tasks.length;
+    const done = tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length;
+    const completionPct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    const openTasks = total - done;
+    const resolvedItems = done;
+
+    const today = new Date();
+    const upcomingDeadlines = tasks
+      .map((t) => (t.deadline ? new Date(t.deadline) : null))
+      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()) && d.getTime() >= today.getTime());
+    const nextMilestoneDate = upcomingDeadlines.length ? new Date(Math.min(...upcomingDeadlines.map((d) => d.getTime()))) : null;
+
+    const daysToMilestone = nextMilestoneDate
+      ? Math.max(0, Math.ceil((nextMilestoneDate.getTime() - today.getTime()) / 86400000))
+      : null;
+
+    const milestoneLabel = nextMilestoneDate
+      ? nextMilestoneDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : "—";
+
+    return {
+      completionPct,
+      openTasks,
+      resolvedItems,
+      daysToMilestone,
+      milestoneLabel,
+    };
+  }, [tasks]);
+
+
   const navItems = [
     { id: "overview" as View, icon: LayoutDashboard, label: "Overview" },
     { id: "chatbot" as View, icon: MessageSquare, label: "AI Assistant", badge: null },
-    { id: "messages" as View, icon: Users, label: "Team Messages", badge: 3 },
+    { id: "messages" as View, icon: Users, label: "Task Collaboration", badge: 3 },
     { id: "onboarding" as View, icon: ClipboardList, label: "Onboarding" },
   ];
 
@@ -145,7 +215,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             <h1 className="font-semibold text-sm" style={{ color: '#F0F2F0' }}>
               {activeView === "overview" && "Engagement Overview"}
               {activeView === "chatbot" && "AI Assistant"}
-              {activeView === "messages" && "Team Messages"}
+              {activeView === "messages" && "Task Collaboration"}
               {activeView === "onboarding" && "Client Onboarding"}
             </h1>
             <p className="text-xs" style={{ color: '#4A5568' }}>
@@ -161,9 +231,10 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             </div>
             {/* Notifications */}
             <div className="relative">
-              <button onClick={() => setNotifOpen(!notifOpen)}
+          <button onClick={() => setNotifOpen(!notifOpen)} title="Toggle notifications"
                 className="relative p-2 rounded-lg transition-colors hover:bg-[#1A1E24]">
                 <Bell size={16} style={{ color: '#6B7A5E' }} />
+
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: '#86BC25' }} />
               </button>
               {notifOpen && (
@@ -200,21 +271,54 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                 {/* KPI row */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   {[
-                    { label: "Completion", value: "73%", sub: "+10% this month", icon: TrendingUp, positive: true },
-                    { label: "Open tasks", value: "14", sub: "4 high priority", icon: AlertCircle, positive: false },
-                    { label: "Days to milestone", value: "6", sub: "UAT prep — Jul 18", icon: Clock, positive: true },
-                    { label: "Resolved items", value: "48", sub: "This sprint", icon: CheckCircle2, positive: true },
-                  ].map((kpi) => (
-                    <div key={kpi.label} className="rounded-xl p-4" style={{ background: '#111318', border: '1px solid rgba(134,188,37,0.1)' }}>
+                    {
+                      label: "Completion",
+                      value: tasksLoading ? "—" : `${kpi.completionPct}%`,
+                      sub: tasksLoading ? "Loading…" : "Done / Total tasks",
+                      icon: TrendingUp,
+                      positive: true,
+                    },
+                    {
+                      label: "Open tasks",
+                      value: tasksLoading ? "—" : `${kpi.openTasks}`,
+                      sub: tasksLoading ? "Loading…" : "Remaining (not DONE)",
+                      icon: AlertCircle,
+                      positive: false,
+                    },
+                    {
+                      label: "Days to milestone",
+                      value: tasksLoading ? "—" : (kpi.daysToMilestone === null ? "—" : `${kpi.daysToMilestone}`),
+                      sub: tasksLoading ? "Loading…" : (kpi.milestoneLabel || "—"),
+                      icon: Clock,
+                      positive: true,
+                    },
+                    {
+                      label: "Resolved items",
+                      value: tasksLoading ? "—" : `${kpi.resolvedItems}`,
+                      sub: tasksLoading ? "Loading…" : "Tasks marked DONE",
+                      icon: CheckCircle2,
+                      positive: true,
+                    },
+                  ].map((card) => (
+                    <div key={card.label} className="rounded-xl p-4" style={{ background: '#111318', border: '1px solid rgba(134,188,37,0.1)' }}>
                       <div className="flex items-start justify-between mb-3">
-                        <span className="text-xs" style={{ color: '#6B7A5E' }}>{kpi.label}</span>
-                        <kpi.icon size={14} style={{ color: kpi.positive ? '#86BC25' : '#E8A44A' }} />
+                        <span className="text-xs" style={{ color: '#6B7A5E' }}>{card.label}</span>
+                        <card.icon size={14} style={{ color: card.positive ? '#86BC25' : '#E8A44A' }} />
                       </div>
-                      <div className="text-2xl font-bold" style={{ color: '#F0F2F0' }}>{kpi.value}</div>
-                      <div className="text-xs mt-1" style={{ color: '#4A5568' }}>{kpi.sub}</div>
+                      <div className="text-2xl font-bold" style={{ color: '#F0F2F0' }}>{card.value}</div>
+                      <div className="text-xs mt-1" style={{ color: '#4A5568' }}>{card.sub}</div>
                     </div>
                   ))}
                 </div>
+
+                {tasksError && (
+                  <div className="mb-6 px-4 py-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <div className="text-xs" style={{ color: '#C8D4B8' }}>
+                      Couldn’t load KPI data: <span style={{ color: '#EF4444', fontWeight: 600 }}>{tasksError}</span>
+                    </div>
+                  </div>
+                )}
+
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
                   {/* Progress chart */}
