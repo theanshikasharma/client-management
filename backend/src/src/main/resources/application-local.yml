@@ -1,0 +1,10 @@
+spring:
+  profiles:
+    active: local
+  security:
+    enabled: false
+  jpa:
+    properties:
+      hibernate:
+        ddl-auto: update
+

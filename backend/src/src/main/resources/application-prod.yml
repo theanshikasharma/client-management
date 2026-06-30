@@ -1,0 +1,10 @@
+spring:
+  profiles:
+    active: prod
+  security:
+    enabled: true
+  jpa:
+    properties:
+      hibernate:
+        ddl-auto: validate
+
