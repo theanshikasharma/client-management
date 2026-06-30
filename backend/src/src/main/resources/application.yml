@@ -13,7 +13,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
-    ddl-auto: validate
+    ddl-auto: update
 
 server:
   port: ${SERVER_PORT:8082}
