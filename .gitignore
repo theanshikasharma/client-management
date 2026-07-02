@@ -1,21 +1,31 @@
-node_modules/
-dist/
-build/
-out/
-coverage/
-.DS_Store
-.env
-.env.*
-*.log
+# Build outputs
+**/build/
+**/.gradle/
+**/node_modules/
+**/dist/
 
-# Optional: IDE
-.vscode/
+# Secrets
+.env
+*.env
+!.env.example
+
+# Local config
+**/application-local.properties
+
+# IDE
 .idea/
+*.iml
+*.iws
+*.ipr
 
 # OS
+.DS_Store
 Thumbs.db
 
-.gradle/
-.gradle/
-build/
-build/
+# Logs
+*.log
+logs/
+
+# Test results
+test-results/
+

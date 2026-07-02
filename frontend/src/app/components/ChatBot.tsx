@@ -45,11 +45,14 @@ function parseIntent(message: string): { type: string; data?: Record<string, str
   return { type: "AI_QUERY" };
 }
 
-async function callHuggingFace(prompt: string): Promise<string> {
+async function callHuggingFace(prompt: string, token: string): Promise<string> {
   try {
     const r = await fetch(`/ai/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ message: prompt }),
     });
 
@@ -60,6 +63,19 @@ async function callHuggingFace(prompt: string): Promise<string> {
   } catch {
     return "AI response unavailable. Task operations still work!";
   }
+}
+
+function getProjectContextPrompt() {
+  return [
+    "You are a project-aware assistant for a Deloitte Client Management System demo.",
+    "Architecture: React + Vite frontend with components like AuthPage and ChatBot.",
+    "Backend: Spring Boot REST APIs.",
+    "OTP flow: /auth/login and /auth/register generate OTP and print it to backend console; /auth/verify-otp verifies using {email, otpRequestId, otp}.",
+    "AI chat: /ai/chat uses AiChatController -> HuggingFaceChatServiceImpl to call HuggingFace Inference API.",
+    "Task APIs: /tasks provides task listing and creation; task controller/service manage Task entities.",
+    "When asked about " + "" + "pending improvements" + ": be honest; if not present in the code, suggest safe general demo improvements.",
+    "Answer clearly and concisely, matching the question.",
+  ].join(" ");
 }
 
 function renderMarkdown(text: string) {
@@ -137,7 +153,11 @@ export function ChatBot({ user }: ChatBotProps) {
     if (intent.type === "CREATE_TASK" && intent.data) {
       const created = await createTask(intent.data.title, intent.data.priority, intent.data.deadline);
       if (created) {
-        const aiConfirm = await callHuggingFace(`Confirm task created: "${created.title}" with ${created.priority} priority. One sentence.`);
+        const contextPrompt = getProjectContextPrompt();
+        const aiConfirm = await callHuggingFace(
+          `${contextPrompt}\n\nUser: Confirm task created: "${created.title}" with ${created.priority} priority. One sentence.`,
+          user.token
+        );
         responseContent = `✅ ${aiConfirm}\n\n**Title:** ${created.title}\n**Priority:** ${created.priority}\n**Status:** PENDING${created.deadline ? `\n**Deadline:** ${created.deadline}` : ""}`;
       } else {
         responseContent = "❌ Could not create task. Check if backend is running.";
@@ -159,7 +179,11 @@ export function ChatBot({ user }: ChatBotProps) {
       const pct = fetched.length > 0 ? Math.round((done / fetched.length) * 100) : 0;
       responseContent = `📊 **Task Status Report:**\n\n**Total:** ${fetched.length}\n**Completion:** ${pct}%\n**Pending:** ${pending}\n**Done:** ${done}\n**High Priority:** ${high}`;
     } else {
-      responseContent = await callHuggingFace(`You are a Deloitte AI assistant for task management. Answer briefly and professionally: ${text}`);
+      const contextPrompt = getProjectContextPrompt();
+      responseContent = await callHuggingFace(
+        `${contextPrompt}\n\nUser question: ${text}`,
+        user.token
+      );
     }
 
     setMessages(prev => prev.map(m => m.isLoading ? { ...m, content: responseContent, isLoading: false } : m));

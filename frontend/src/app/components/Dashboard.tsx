@@ -2,16 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import { motion, AnimatePresence } from "motion/react";
 import {
-  LayoutDashboard, MessageSquare, Users, ClipboardList,
+  LayoutDashboard, MessageSquare, Users, ClipboardList, FolderOpen,
   Bell, Settings, LogOut, ChevronRight, TrendingUp,
   FileText, Calendar, AlertCircle, CheckCircle2, Clock,
   Activity, BarChart3, Shield, Zap
 } from "lucide-react";
 import { ChatBot } from "./ChatBot";
+import { DocumentsPage } from "./DocumentsPage";
 import { ClientInteraction } from "./ClientInteraction";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-type View = "overview" | "chatbot" | "messages" | "onboarding";
+type View = "overview" | "chatbot" | "messages" | "documents" | "onboarding";
 
 interface DashboardProps {
   user: { name: string; email: string; company: string };
@@ -27,17 +28,6 @@ const DeloitteWordmark = () => (
     <span style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: '18px', color: '#F0F2F0' }}>Deloitte</span>
   </div>
 );
-
-const progressData = [
-  { month: "Jan", completion: 18 }, { month: "Feb", completion: 31 },
-  { month: "Mar", completion: 45 }, { month: "Apr", completion: 52 },
-  { month: "May", completion: 63 }, { month: "Jun", completion: 73 },
-];
-
-const activityData = [
-  { day: "Mon", tasks: 8 }, { day: "Tue", tasks: 12 }, { day: "Wed", tasks: 6 },
-  { day: "Thu", tasks: 15 }, { day: "Fri", tasks: 10 }, { day: "Sat", tasks: 4 }, { day: "Sun", tasks: 3 },
-];
 
 const milestones = [
   { label: "Project kickoff", date: "Jan 15", done: true },
@@ -80,6 +70,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     status?: string;
     priority?: string;
     deadline?: string | null;
+    createdAt?: string | null;
   };
 
   const [tasks, setTasks] = useState<TaskLike[]>([]);
@@ -142,11 +133,54 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     };
   }, [tasks]);
 
+  // Real chart data derived from the same fetched tasks — no static/heuristic arrays
+  const charts = useMemo(() => {
+    const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const dayIndexMap: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
+    const weeklyCounts: Record<string, number> = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
+
+    tasks.forEach((t) => {
+      if (!t.createdAt) return;
+      const d = new Date(t.createdAt);
+      if (Number.isNaN(d.getTime())) return;
+      const dayName = dayIndexMap[d.getDay()];
+      weeklyCounts[dayName] += 1;
+    });
+
+    const weeklyActivity = dayOrder.map((day) => ({ day, tasks: weeklyCounts[day] }));
+
+    // Rolling 6-month window ending the current month, cumulative completion %
+    const now = new Date();
+    const months: { label: string; year: number; monthIndex: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ label: d.toLocaleDateString(undefined, { month: "short" }), year: d.getFullYear(), monthIndex: d.getMonth() });
+    }
+
+    const monthlyProgress = months.map(({ label, year, monthIndex }) => {
+      const cutoff = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+      const tasksByThen = tasks.filter((t) => {
+        if (!t.createdAt) return false;
+        const d = new Date(t.createdAt);
+        return !Number.isNaN(d.getTime()) && d.getTime() <= cutoff.getTime();
+      });
+      const doneByThen = tasksByThen.filter((t) => (t.status || "").toUpperCase() === "DONE").length;
+      const pct = tasksByThen.length > 0 ? Math.round((doneByThen / tasksByThen.length) * 100) : 0;
+      return { month: label, completion: pct };
+    });
+
+    const monthRangeLabel = months.length
+      ? `${months[0].label} – ${months[months.length - 1].label} ${months[months.length - 1].year}`
+      : "";
+
+    return { weeklyActivity, monthlyProgress, monthRangeLabel };
+  }, [tasks]);
 
   const navItems = [
     { id: "overview" as View, icon: LayoutDashboard, label: "Overview" },
     { id: "chatbot" as View, icon: MessageSquare, label: "AI Assistant", badge: null },
     { id: "messages" as View, icon: Users, label: "Task Collaboration", badge: 3 },
+    { id: "documents" as View, icon: FolderOpen, label: "Documents" },
     { id: "onboarding" as View, icon: ClipboardList, label: "Onboarding" },
   ];
 
@@ -328,10 +362,10 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                         <h3 className="text-sm font-semibold" style={{ color: '#F0F2F0' }}>Project Progress</h3>
                         <p className="text-xs mt-0.5" style={{ color: '#4A5568' }}>Cumulative completion over time</p>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(134,188,37,0.1)', color: '#86BC25' }}>Jan – Jun 2026</span>
+                      <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(134,188,37,0.1)', color: '#86BC25' }}>{charts.monthRangeLabel}</span>
                     </div>
                     <ResponsiveContainer width="100%" height={160}>
-                      <AreaChart data={progressData}>
+                      <AreaChart data={charts.monthlyProgress}>
                         <defs>
                           <linearGradient id="prog" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#86BC25" stopOpacity={0.25} />
@@ -349,9 +383,9 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   {/* Weekly activity */}
                   <div className="rounded-xl p-5" style={{ background: '#111318', border: '1px solid rgba(134,188,37,0.1)' }}>
                     <h3 className="text-sm font-semibold mb-1" style={{ color: '#F0F2F0' }}>Weekly Activity</h3>
-                    <p className="text-xs mb-4" style={{ color: '#4A5568' }}>Tasks completed per day</p>
+                    <p className="text-xs mb-4" style={{ color: '#4A5568' }}>Tasks created per day (real data)</p>
                     <ResponsiveContainer width="100%" height={160}>
-                      <BarChart data={activityData} barSize={14}>
+                      <BarChart data={charts.weeklyActivity} barSize={14}>
                         <XAxis dataKey="day" tick={{ fill: '#4A5568', fontSize: 10 }} axisLine={false} tickLine={false} />
                         <Tooltip content={<CustomTooltip />} />
                         <Bar dataKey="tasks" fill="#86BC25" opacity={0.8} radius={[3, 3, 0, 0]} />
@@ -392,6 +426,20 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               <motion.div key="chatbot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
                 className="h-full flex flex-col" style={{ background: '#111318' }}>
                 <ChatBot user={user} />
+              </motion.div>
+            )}
+
+            {activeView === "documents" && (
+              <motion.div key="documents" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                className="h-full overflow-hidden">
+                <DocumentsPage user={user} />
+              </motion.div>
+            )}
+
+            {activeView === "documents" && (
+              <motion.div key="documents" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                className="h-full overflow-hidden">
+                <DocumentsPage user={user} />
               </motion.div>
             )}
 

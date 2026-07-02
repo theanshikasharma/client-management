@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Eye, EyeOff, ArrowRight, Shield, CheckCircle2, Mail, Lock, User, Building2, ChevronLeft, AlertCircle } from "lucide-react";
 
-const API = "http://localhost:8080";
+// Use relative URLs so Vite proxy forwards to backend.
+const API = "";
 
 type AuthStep = "login" | "signup" | "otp";
 
@@ -50,6 +51,8 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [apiError, setApiError] = useState("");
   const [authToken, setAuthToken] = useState("");
   const [authName, setAuthName] = useState("");
+  const [otpRequestId, setOtpRequestId] = useState<string>("");
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -93,16 +96,26 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
       });
 
       if (!r.ok) {
-        const err = await r.json();
-        throw new Error(err.message || "Authentication failed");
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.message || "Authentication failed");
       }
 
       const data = await r.json();
       setAuthToken(data.token);
       setAuthName(data.name || formData.name || formData.email.split("@")[0]);
-      setOtpTimer(60);
-      setTimerActive(true);
+
+      const otpId = data?.otpRequestId;
+      const ttl = Number(data?.otpTtlSeconds || 60);
+
+      if (!otpId) {
+        setApiError("Server did not return an OTP request id. Check backend logs.");
+        return;
+      }
+
       setOtpValues(["", "", "", "", "", ""]);
+      setOtpRequestId(otpId);
+      setOtpTimer(ttl);
+      setTimerActive(true);
       setStep("otp");
     } catch (err: unknown) {
       setApiError(err instanceof Error ? err.message : "Something went wrong. Try again.");
@@ -111,21 +124,44 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
+  const handleOtpChange = async (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const newOtp = [...otpValues];
     newOtp[index] = value.slice(-1);
     setOtpValues(newOtp);
     if (value && index < 5) otpRefs.current[index + 1]?.focus();
+
     if (newOtp.every(v => v !== "")) {
-      setTimeout(() => {
+      const otp = newOtp.join("");
+      setIsVerifyingOtp(true);
+      try {
+        const r = await fetch(`${API}/auth/verify-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email, otpRequestId, otp }),
+        });
+
+        if (!r.ok) {
+          const err = await r.json().catch(() => null);
+          throw new Error(err?.message || "Invalid OTP");
+        }
+
+        const data = await r.json();
+        if (!data.verified) throw new Error(data.message || "Invalid OTP");
+
         onAuthenticated({
           name: authName,
           email: formData.email,
           company: formData.company || "Deloitte Client",
           token: authToken,
         });
-      }, 300);
+      } catch (err: unknown) {
+        setApiError(err instanceof Error ? err.message : "Invalid OTP");
+        setOtpValues(["", "", "", "", "", ""]);
+        otpRefs.current[0]?.focus();
+      } finally {
+        setIsVerifyingOtp(false);
+      }
     }
   };
 
@@ -311,16 +347,23 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                     style={{ background: 'rgba(134,188,37,0.1)', border: '1px solid rgba(134,188,37,0.2)' }}>
                     <Mail size={22} style={{ color: '#86BC25' }} />
                   </div>
-                  <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', fontWeight: 700, color: '#F0F2F0' }}>Authenticated!</h2>
+                  <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '28px', fontWeight: 700, color: '#F0F2F0' }}>Enter verification code</h2>
                   <p className="mt-2 text-sm leading-relaxed" style={{ color: '#6B7A5E' }}>
-                    JWT token received. Enter any 6 digits to enter your portal.<br />
+                    Check the backend console for the OTP (demo mode — no email sent).<br />
                     <span style={{ color: '#C8D4B8', fontWeight: 500 }}>{formData.email}</span>
                   </p>
                 </div>
+                {apiError && (
+                  <div className="mb-4 flex items-center gap-2 p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                    <AlertCircle size={14} style={{ color: '#EF4444' }} />
+                    <span className="text-xs" style={{ color: '#EF4444' }}>{apiError}</span>
+                  </div>
+                )}
                 <div className="flex gap-2 justify-between mb-6">
                   {otpValues.map((val, i) => (
                     <input key={i} ref={el => { otpRefs.current[i] = el; }}
                       type="text" inputMode="numeric" maxLength={1} value={val}
+                      disabled={isVerifyingOtp}
                       onChange={e => handleOtpChange(i, e.target.value)}
                       onKeyDown={e => handleOtpKeyDown(i, e)}
                       className="flex-1 aspect-square text-center text-xl font-semibold rounded-lg border focus:outline-none transition-all"
@@ -336,7 +379,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                   style={{ background: 'rgba(134,188,37,0.05)', border: '1px solid rgba(134,188,37,0.1)' }}>
                   <CheckCircle2 size={14} style={{ color: '#86BC25' }} />
                   <span className="text-xs" style={{ color: '#6B7A5E' }}>
-                    Real JWT token received from user-service ✓
+                    {isVerifyingOtp ? "Verifying…" : `Code valid for ${otpTimer}s`}
                   </span>
                 </div>
               </motion.div>

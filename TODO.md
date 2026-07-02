@@ -1,19 +1,10 @@
-# TODO: Diagnose and fix Task API issues
+## TODO (Demo-ready fix)
 
-## Step 1: Identify failing endpoint and request params
-- Determine which endpoint fails (likely GET `/tasks/paged`).
-- Capture HTTP status + stack trace.
-
-## Step 2: Remove largest runtime failure mode
-- ✅ Added server-side validation/whitelisting for `sortBy`, `direction`, `page`, `size` used in `/tasks/paged`.
-- ✅ Only real entity fields are allowed (`createdAt`, `updatedAt`, `title`, `deadline`, `status`, `priority`, etc.).
-
-
-## Step 3: Confirm behavior
-- Run `./gradlew test` / `./gradlew bootRun` (if needed).
-- Verify paged endpoint returns 200 for typical params.
-
-## Step 4: Optional fixes if CORS is a problem
-- ✅ Broadened CORS to also allow `http://127.0.0.1:5173`.
-
+- [ ] Fix OTP flow end-to-end so backend debug log prints OTP and OTP verification accepts it.
+- [ ] Ensure frontend OTP verify calls match backend endpoints/payloads.
+- [ ] Ensure post-OTP onboarding redirects/advances correctly to main dashboard.
+- [ ] Fix any CORS/security issues blocking /auth/** endpoints.
+- [ ] Smoke test: start backend, start frontend, execute OTP login → OTP screen → verify OTP → reach dashboard.
+- [ ] Verify AI chatbot endpoint chain (/ai/chat) responds and headers are correct.
+- [ ] Update TODO.md progress as steps complete.
 

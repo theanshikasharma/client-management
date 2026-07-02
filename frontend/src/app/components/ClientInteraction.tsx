@@ -13,9 +13,11 @@ interface Task {
 }
 
 interface ClientInteractionProps {
-  user: { name: string; email: string; company: string };
+  user: { name: string; email: string; company: string; token: string };
 }
 
+
+// Use relative URLs so Vite proxy forwards to backend.
 const API = "";
 
 export function ClientInteraction({ user }: ClientInteractionProps) {
@@ -29,7 +31,12 @@ export function ClientInteraction({ user }: ClientInteractionProps) {
     setError(null);
     try {
       // Backend should provide tasks endpoint; we sort client-side to match the requested grid order.
-      const r = await fetch(`${API}/tasks`);
+      const r = await fetch(`${API}/tasks`, {
+        headers: {
+          ...(user.token ? { Authorization: `Bearer ${user.token}` } : {}),
+        },
+      });
+
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = (await r.json()) as Task[];
       const sorted = [...data].sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
