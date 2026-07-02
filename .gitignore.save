@@ -1,0 +1,28 @@
+node_modules/
+dist/
+
+
+
+
+
+
+
+
+build/
+out/
+coverage/
+.DS_Store
+.env
+.env.*
+*.log
+
+# Optional: IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+.gradle/
+.gradle/
+build/
